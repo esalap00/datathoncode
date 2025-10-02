@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Pericial – Soberanía y Trazabilidad</title>
+
+  <!-- Pico.css -->
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
+
+  <style>
+    body {
+      --pico-background-color: #f8fafc;
+      --pico-primary: #3b82f6;
+      --pico-primary-contrast: #fff;
+      --pico-muted-color: #64748b;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .hash-output {
+      font-family: monospace;
+      font-size: 0.9rem;
+      word-wrap: break-word;
+      background: #e2e8f0;
+      padding: .5rem .8rem;
+      border-radius: .5rem;
+      margin-top: .5rem;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .timeline-entry {
+      padding: .8rem;
+      border: 1px solid #e2e8f0;
+      border-radius: .5rem;
+      background: #ffffff;
+    }
+
+    footer {
+      text-align: center;
+      font-size: .9rem;
+      color: var(--pico-muted-color);
+      margin-top: 2rem;
+    }
+
+    @media(min-width: 768px) {
+      main {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚖️ Sistema Informático Pericial</h1>
+    <p>Soberanía • Gobernanza • Trazabilidad de las pruebas judiciales</p>
+  </header>
+
+  <main class="container">
+    <!-- Panel izquierdo: carga y sellado -->
+    <section>
+      <h2>Subir y Sellar Evidencia</h2>
+      <form id="evidenceForm">
+        <label for="fileInput">Archivo de Evidencia</label>
+        <input type="file" id="fileInput" required>
+
+        <label for="title">Título / Descripción</label>
+        <input type="text" id="title" placeholder="Ej. Imagen forense del disco" required>
+
+        <label for="uploader">Perito / Uploader</label>
+        <input type="text" id="uploader" placeholder="Nombre del perito" required>
+
+        <label for="tags">Etiquetas de gobernanza</label>
+        <input type="text" id="tags" placeholder="ej. confidencial, retención:10 años">
+
+        <label for="sovereignty">Soberanía de datos</label>
+        <select id="sovereignty">
+          <option value="local">Local (solo navegador)</option>
+          <option value="certified">Proveedor certificado</option>
+          <option value="hybrid">Híbrido (local + remoto)</option>
+        </select>
+
+        <button type="button" id="hashBtn">Calcular Hash</button>
+        <div class="hash-output" id="hashOutput">Hash: —</div>
+
+        <button type="submit" class="contrast">Agregar al Registro</button>
+      </form>
+    </section>
+
+    <!-- Panel derecho: cadena de custodia -->
+    <section>
+      <h2>Cadena de Custodia</h2>
+      <div id="timeline" class="timeline">
+        <p>No hay evidencias registradas.</p>
+      </div>
+
+      <h3>Verificación</h3>
+      <input type="file" id="verifyFile">
+      <button id="verifyBtn">Verificar Archivo</button>
+      <p id="verifyResult"></p>
+    </section>
+  </main>
+
+  <footer>
+    © 2025 Sistema Pericial – Prototipo demostrativo (no oficial para uso judicial)
+  </footer>
+
+  <script>
+    // Referencias
+    const fileInput = document.getElementById('fileInput');
+    const hashOutput = document.getElementById('hashOutput');
+    const hashBtn = document.getElementById('hashBtn');
+    const form = document.getElementById('evidenceForm');
+    const timeline = document.getElementById('timeline');
+    const verifyFile = document.getElementById('verifyFile');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const verifyResult = document.getElementById('verifyResult');
+
+    let evidences = JSON.parse(localStorage.getItem('evidences') || '[]');
+    let currentHash = null;
+
+    // Formato fecha
+    function formatDate(ts) {
+      return new Date(ts).toLocaleString('es-ES');
+    }
+
+    // Renderizar cadena de custodia
+    function renderTimeline() {
+      timeline.innerHTML = '';
+      if (evidences.length === 0) {
+        timeline.innerHTML = '<p>No hay evidencias registradas.</p>';
+        return;
+      }
+      evidences.forEach(ev => {
+        const div = document.createElement('div');
+        div.classList.add('timeline-entry');
+        div.innerHTML = `
+          <strong>${ev.title}</strong><br>
+          <small>${ev.filename}</small><br>
+          <small>Perito: ${ev.uploader}</small><br>
+          <small>Soberanía: ${ev.sovereignty}</small><br>
+          <small>Hash: <code>${ev.hash.slice(0,16)}...${ev.hash.slice(-8)}</code></small><br>
+          <small>Fecha: ${formatDate(ev.timestamp)}</small>
+        `;
+        timeline.appendChild(div);
+      });
+    }
+
+    // Cálculo hash SHA-256
+    async function calculateHash(file) {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Calcular hash
+    hashBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('Seleccione un archivo primero.');
+        return;
+      }
+      currentHash = await calculateHash(file);
+      hashOutput.textContent = `Hash: ${currentHash}`;
+    });
+
+    // Guardar evidencia
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file || !currentHash) {
+        alert('Debe seleccionar archivo y calcular el hash.');
+        return;
+      }
+
+      const evidence = {
+        id: crypto.randomUUID(),
+        title: document.getElementById('title').value,
+        uploader: document.getElementById('uploader').value,
+        sovereignty: document.getElementById('sovereignty').value,
+        tags: document.getElementById('tags').value,
+        filename: file.name,
+        hash: currentHash,
+        timestamp: Date.now()
+      };
+
+      evidences.unshift(evidence);
+      localStorage.setItem('evidences', JSON.stringify(evidences));
+
+      renderTimeline();
+      form.reset();
+      hashOutput.textContent = 'Hash: —';
+      currentHash = null;
+      alert('Evidencia registrada correctamente.');
+    });
+
+    // Verificación
+    verifyBtn.addEventListener('click', async () => {
+      const file = verifyFile.files[0];
+      if (!file) {
+        alert('Seleccione el archivo a verificar.');
+        return;
+      }
+
+      const hash = await calculateHash(file);
+      const found = evidences.find(ev => ev.hash === hash);
+      if (found) {
+        verifyResult.textContent = `✅ Archivo válido. Coincide con evidencia: ${found.title}`;
+      } else {
+        verifyResult.textContent = '❌ No coincide con ninguna evidencia registrada.';
+      }
+    });
+
+    // Render inicial
+    renderTimeline();
+  </script>
+</body>
+</html>
